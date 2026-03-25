@@ -29,33 +29,69 @@ export function Field() {
     setBombs(prev => [...prev, newBomb]);
   };
 
-  const updatePhysics = () => {
-    setBombs(prevBombs => prevBombs.map(bomb => {
-      let { x, y, vx, vy } = bomb;
+	const updatePhysics = () => {
+		const CAGE_TOP    = (FIELD_SIZE - CAGE_SIZE) / 2;
+		const CAGE_BOTTOM = CAGE_TOP + CAGE_SIZE;
 
-      // 位置の更新
-      x += vx;
-      y += vy;
+		// AABB衝突解決: 最小貫通方向に押し出す
+		const resolveAABB = (
+			bx: number, by: number,
+			vx: number, vy: number,
+			cx: number, cy: number, cw: number, ch: number
+		) => {
+			const overlapLeft   = (bx + BOMB_SIZE) - cx;
+			const overlapRight  = (cx + cw) - bx;
+			const overlapTop    = (by + BOMB_SIZE) - cy;
+			const overlapBottom = (cy + ch) - by;
 
-      // 外壁との衝突判定
-      if (x < 0 || x > FIELD_SIZE - BOMB_SIZE) vx *= -1;
-      if (y < 0 || y > FIELD_SIZE - BOMB_SIZE) vy *= -1;
+			// 重なっていなければスキップ
+			if (overlapLeft <= 0 || overlapRight <= 0 || overlapTop <= 0 || overlapBottom <= 0) {
+				return { bx, by, vx, vy };
+			}
 
-      // ケージとの衝突判定 (左ケージ: 0~200, 右ケージ: 440~640)
-      const inLeftCageX = x < CAGE_SIZE;
-      const inRightCageX = x > FIELD_SIZE - CAGE_SIZE - BOMB_SIZE;
-      const inCageY = y > (FIELD_SIZE - CAGE_SIZE) / 2 && y < (FIELD_SIZE + CAGE_SIZE) / 2 - BOMB_SIZE;
+			const minX = Math.min(overlapLeft, overlapRight);
+			const minY = Math.min(overlapTop, overlapBottom);
 
-      if (inCageY && (inLeftCageX || inRightCageX)) {
-        vx *= -1; // 横方向で跳ね返る
-        // めり込み防止
-        x = inLeftCageX ? CAGE_SIZE : FIELD_SIZE - CAGE_SIZE - BOMB_SIZE;
-      }
+			if (minX < minY) {
+				// 横方向が最小 → 横に押し出し（左右壁から入った）
+				if (overlapLeft < overlapRight) {
+					return { bx: cx - BOMB_SIZE, by, vx: -Math.abs(vx), vy };
+				} else {
+					return { bx: cx + cw, by, vx: Math.abs(vx), vy };
+				}
+			} else {
+				// 縦方向が最小 → 縦に押し出し（上下から入った）
+				if (overlapTop < overlapBottom) {
+					return { bx, by: cy - BOMB_SIZE, vx, vy: -Math.abs(vy) };
+				} else {
+					return { bx, by: cy + ch, vx, vy: Math.abs(vy) };
+				}
+			}
+		};
 
-      return { ...bomb, x, y, vx, vy };
-    }));
-    requestRef.current = requestAnimationFrame(updatePhysics);
-  };
+		setBombs(prevBombs => prevBombs.map(bomb => {
+			let { x, y, vx, vy } = bomb;
+
+			x += vx;
+			y += vy;
+
+			// 外壁
+			if (x < 0)                          { x = 0;                        vx =  Math.abs(vx); }
+			else if (x > FIELD_SIZE - BOMB_SIZE) { x = FIELD_SIZE - BOMB_SIZE;  vx = -Math.abs(vx); }
+			if (y < 0)                          { y = 0;                        vy =  Math.abs(vy); }
+			else if (y > FIELD_SIZE - BOMB_SIZE) { y = FIELD_SIZE - BOMB_SIZE;  vy = -Math.abs(vy); }
+
+			// 左ケージ (x=0..200, y=CAGE_TOP..CAGE_BOTTOM)
+			({ bx: x, by: y, vx, vy } = resolveAABB(x, y, vx, vy, 0, CAGE_TOP, CAGE_SIZE, CAGE_SIZE));
+
+			// 右ケージ (x=440..640, y=CAGE_TOP..CAGE_BOTTOM)
+			({ bx: x, by: y, vx, vy } = resolveAABB(x, y, vx, vy, FIELD_SIZE - CAGE_SIZE, CAGE_TOP, CAGE_SIZE, CAGE_SIZE));
+
+			return { ...bomb, x, y, vx, vy };
+		}));
+
+		requestRef.current = requestAnimationFrame(updatePhysics);
+	};
 
   useEffect(() => {
     const spawnInterval = setInterval(spawnBomb, 3000);
