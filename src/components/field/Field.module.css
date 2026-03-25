@@ -1,0 +1,8 @@
+.field {
+  display: flex;
+	justify-content: space-between;
+  align-items: center;
+  width: 640px;
+  height: 640px;
+  background-color: green;
+}
