@@ -8,7 +8,9 @@ export interface Bomb {
   id: string;
   color: BombColor;
   x: number;
-  y: number;
+	y: number;
+	vx: number;
+	vy: number;
   wobbleSeed: number;
   status: BombStatus;
   stackIndex?: number;
