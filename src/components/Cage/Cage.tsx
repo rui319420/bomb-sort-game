@@ -1,17 +1,19 @@
 'use client'
 
-import { useEffect, useState } from "react";
 import styles from "./Cage.module.css"
 
 type CageProps = {
-	color: "red" | "black";
+  color: "red" | "black"; 
 }
 
-export function Cage() {
+export function Cage({ color }: CageProps) {
 
   return (
-		<div className={styles.cage}>
-			
-		</div>
+    <div 
+      className={styles.cage} 
+      style={{ backgroundColor: color }}
+    >
+      
+    </div>
   )
 }

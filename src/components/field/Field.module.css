@@ -1,8 +1,10 @@
 .field {
+  position: relative;
   display: flex;
-	justify-content: space-between;
+  justify-content: space-between;
   align-items: center;
   width: 640px;
   height: 640px;
   background-color: green;
+  overflow: hidden;
 }
