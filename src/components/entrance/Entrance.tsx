@@ -1,10 +1,20 @@
 'use client'
 
-import styles from "./Entrance.module.css" // 必要に応じて作成してください
+import styles from "./Entrance.module.css"
 
-export function Entrance() {
+type EntranceProps = {
+  position?: "top" | "bottom";
+}
+
+export function Entrance({ position = "top" }: EntranceProps) {
   return (
-    <div className={styles.entrance}>
+    <div 
+      className={styles.entrance}
+      style={{
+        top: position === "top" ? 0 : "auto",
+        bottom: position === "bottom" ? 0 : "auto",
+      }}
+    >
       ENTRANCE
     </div>
   )
