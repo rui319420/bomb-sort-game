@@ -1,7 +1,7 @@
 // src/components/field/Field.tsx
 'use client'
 
-import { useEffect, useState, useRef, useCallback } from "react";
+import { useEffect, useState, useRef, useCallback, type Dispatch, type SetStateAction } from "react";
 import styles from "./Field.module.css";
 import { Cage } from "../Cage/Cage";
 import { Entrance } from "../entrance/Entrance";
@@ -73,6 +73,50 @@ function makeBomb(origin: "top" | "bottom"): Bomb {
   };
 }
 
+function releaseDraggedBomb(
+  draggingIdRef: { current: string | null },
+  mousePosRef: { current: { x: number; y: number } },
+  prevMousePosRef: { current: { x: number; y: number } },
+  setBombs: Dispatch<SetStateAction<Bomb[]>>,
+  setScore: Dispatch<SetStateAction<number>>,
+  triggerAllExplosions: (
+    snapshot: Bomb[],
+    epicenterId?: string,
+    epicenterX?: number,
+    epicenterY?: number,
+  ) => void,
+) {
+  if (!draggingIdRef.current) return;
+  const id = draggingIdRef.current;
+  draggingIdRef.current = null;
+
+  const vx = (mousePosRef.current.x - prevMousePosRef.current.x) * 0.3;
+  const vy = (mousePosRef.current.y - prevMousePosRef.current.y) * 0.3;
+
+  setBombs(prev => {
+    const bomb = prev.find(b => b.id === id);
+    if (!bomb) return prev;
+
+    const dropX   = mousePosRef.current.x - BOMB_SIZE / 2;
+    const dropY   = mousePosRef.current.y - BOMB_SIZE / 2;
+    const entered = getEnteredCage(dropX, dropY);
+
+    if (entered) {
+      if (entered.color === bomb.color) {
+        setScore(s => s + SCORE_PER_SORT);
+        return prev.map(b => b.id === id ? { ...b, status: "sorted" as const } : b);
+      } else {
+        triggerAllExplosions(prev, id, mousePosRef.current.x, mousePosRef.current.y);
+        return prev.map(b => ({ ...b, status: "sorted" as const }));
+      }
+    }
+
+    return prev.map(b =>
+      b.id === id ? { ...b, status: "active" as const, vx, vy } : b
+    );
+  });
+}
+
 // ─────────────────────────────────────────────────────────────
 
 export function Field() {
@@ -89,6 +133,12 @@ export function Field() {
   const prevMousePos    = useRef({ x: 0, y: 0 });
   const fieldRef        = useRef<HTMLDivElement>(null);
   const gamePhaseRef    = useRef<GamePhase>("playing");
+  const triggerAllExplosionsRef = useRef<(
+    snapshot: Bomb[],
+    epicenterId?: string,
+    epicenterX?: number,
+    epicenterY?: number,
+  ) => void>(() => {});
 
   // ── 全爆発ヘルパー ──────────────────────────────────────────
   const triggerAllExplosions = useCallback((
@@ -106,6 +156,10 @@ export function Field() {
       y:  b.id === epicenterId && epicenterY !== undefined ? epicenterY : b.y + BOMB_SIZE / 2,
     })));
   }, []);
+
+  useEffect(() => {
+    triggerAllExplosionsRef.current = triggerAllExplosions;
+  }, [triggerAllExplosions]);
 
   // ── 物理ループ ──────────────────────────────────────────────
   const updatePhysics = useCallback(() => {
@@ -229,39 +283,16 @@ export function Field() {
     ));
   };
 
-  const release = useCallback(() => {
-    if (!draggingId.current) return;
-    const id = draggingId.current;
-    draggingId.current = null;
-
-    const vx = (mousePos.current.x - prevMousePos.current.x) * 0.3;
-    const vy = (mousePos.current.y - prevMousePos.current.y) * 0.3;
-
-    setBombs(prev => {
-      const bomb = prev.find(b => b.id === id);
-      if (!bomb) return prev;
-
-      const dropX   = mousePos.current.x - BOMB_SIZE / 2;
-      const dropY   = mousePos.current.y - BOMB_SIZE / 2;
-      const entered = getEnteredCage(dropX, dropY);
-
-      if (entered) {
-        if (entered.color === bomb.color) {
-          // ✅ 正解
-          setScore(s => s + SCORE_PER_SORT);
-          return prev.map(b => b.id === id ? { ...b, status: "sorted" as const } : b);
-        } else {
-          // ❌ 不正解：全爆発
-          triggerAllExplosions(prev, id, mousePos.current.x, mousePos.current.y);
-          return prev.map(b => ({ ...b, status: "sorted" as const }));
-        }
-      }
-
-      return prev.map(b =>
-        b.id === id ? { ...b, status: "active" as const, vx, vy } : b
-      );
-    });
-  }, [triggerAllExplosions]);
+  const release = () => {
+    releaseDraggedBomb(
+      draggingId,
+      mousePos,
+      prevMousePos,
+      setBombs,
+      setScore,
+      triggerAllExplosionsRef.current,
+    );
+  };
 
   // ── マウスイベント ──────────────────────────────────────────
   const handleMouseMove = (e: React.MouseEvent) => {
@@ -296,14 +327,24 @@ export function Field() {
         );
       });
     };
-    const onKeyUp = (e: KeyboardEvent) => { if (e.key === "Shift") release(); };
+    const onKeyUp = (e: KeyboardEvent) => {
+      if (e.key !== "Shift") return;
+      releaseDraggedBomb(
+        draggingId,
+        mousePos,
+        prevMousePos,
+        setBombs,
+        setScore,
+        triggerAllExplosionsRef.current,
+      );
+    };
     window.addEventListener("keydown", onKeyDown);
     window.addEventListener("keyup",   onKeyUp);
     return () => {
       window.removeEventListener("keydown", onKeyDown);
       window.removeEventListener("keyup",   onKeyUp);
     };
-  }, [release]);
+  }, []);
 
   // ── リセット ────────────────────────────────────────────────
   const reset = () => {
