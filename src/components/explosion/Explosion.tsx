@@ -5,23 +5,24 @@ import { useEffect, useState } from "react";
 import styles from "./Explosion.module.css";
 
 type Props = {
+  id: string;
   x: number;
   y: number;
-  onDone: () => void;
+  onDone: (id: string) => void;
 };
 
 const SPARK_COUNT = 10;
 
-export function Explosion({ x, y, onDone }: Props) {
+export function Explosion({ id, x, y, onDone }: Props) {
   const [visible, setVisible] = useState(true);
 
   useEffect(() => {
     const timer = setTimeout(() => {
       setVisible(false);
-      onDone();
+      onDone(id);
     }, 700);
     return () => clearTimeout(timer);
-  }, [onDone]);
+  }, [id, onDone]);
 
   if (!visible) return null;
 
