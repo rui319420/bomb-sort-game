@@ -1,7 +1,6 @@
-﻿@import "tailwindcss";
+@import "tailwindcss";
 
-canvas {
-  touch-action: none;
-  user-select: none;
-  -webkit-tap-highlight-color: transparent;
-}
+* { box-sizing: border-box; }
+body { margin: 0; background: radial-gradient(ellipse at top, #19382c, #0c1915 70%); color: #eef5ef; font-family: var(--font-geist-sans), Arial, sans-serif; }
+button { font: inherit; }
+button:focus-visible { outline: 3px solid #b8f56b; outline-offset: 5px; }

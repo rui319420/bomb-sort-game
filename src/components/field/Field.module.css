@@ -1,10 +1,40 @@
+.game { width: 100%; overflow: hidden; border: 1px solid #486353; border-radius: 20px; background: #162b21; box-shadow: 0 24px 64px #0005; }
+.toolbar { display: flex; align-items: center; justify-content: space-between; min-height: 64px; padding: 12px 24px; border-bottom: 1px solid #486353; gap: 12px; }
+.status { color: #b8f56b; font-size: 11px; letter-spacing: 0.12em; font-weight: 700; }
+.score { display: flex; align-items: center; gap: 16px; color: #b4c7ba; font-size: 11px; letter-spacing: 0.12em; }
+.score strong { color: #f1f8ea; font-family: var(--font-geist-mono), monospace; font-size: 28px; line-height: 1; }
+.viewport { position: relative; width: 100%; aspect-ratio: 980 / 540; }
 .field {
-  position: relative;
+  position: absolute;
   display: flex;
   justify-content: space-between;
   align-items: center;
   width: 980px;
   height: 540px;
-  background-color: green;
+  transform-origin: top left;
+  background-color: #31583e;
+  background-image: radial-gradient(#73977450 1px, transparent 1px);
+  background-size: 24px 24px;
   overflow: hidden;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.bomb { display: grid; place-items: center; background: radial-gradient(circle at 30% 25%, #75847b, #17231d 75%); }
+.bomb.red { background: radial-gradient(circle at 30% 25%, #ffb1a1, #da4944 65%, #a62929); }
+.bomb::before { content: ""; position: absolute; width: 18px; height: 12px; top: -8px; left: 30px; border-top: 4px solid #ffdf83; border-right: 4px solid #ffdf83; border-radius: 0 10px 0 0; transform: rotate(-20deg); }
+.eyes { color: #fff; font-size: 30px; font-weight: 900; letter-spacing: 5px; padding-left: 5px; transform: translateY(-5px); }
+.overlay { position: absolute; inset: 0; z-index: 50; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 20px; background: #0b1914ed; }
+.overline { color: #b8f56b; font-size: 16px; }
+.overlay h2 { color: #fff0de; font-size: 60px; font-weight: 900; letter-spacing: -0.04em; line-height: 1; }
+.result { color: #b8cbbb; font-size: 20px; }
+.result strong { color: #fff; font-size: 32px; margin: 0 8px; }
+.overlay button { margin-top: 12px; padding: 16px 32px; background: #b8f56b; color: #1b301b; border: 0; border-radius: 12px; font-size: 20px; font-weight: 700; cursor: pointer; }
+.overlay button:hover { background: #d2ffa0; }
+.overlay button span { margin-left: 20px; }
+
+@media (max-width: 600px) {
+  .game { border-radius: 12px; }
+  .toolbar { min-height: 56px; padding: 12px 16px; }
+  .score strong { font-size: 24px; }
 }

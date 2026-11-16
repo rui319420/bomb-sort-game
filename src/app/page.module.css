@@ -1,9 +1,25 @@
-﻿.container {
+.container {
+  width: min(100%, 1060px);
+  min-height: 100svh;
+  margin: 0 auto;
+  padding: 48px 24px 32px;
   display: flex;
   flex-direction: column;
-  align-items: center;
   justify-content: center;
-  height: 100vh;
-  min-height: 100vh;
-  padding: 0 0.5rem;
+  gap: 24px;
+}
+
+.header { text-align: center; }
+.eyebrow { color: #a4e6b5; font-size: 11px; font-weight: 700; letter-spacing: 0.3em; }
+.header h1 { margin: 8px 0; font-size: clamp(36px, 7vw, 64px); font-weight: 900; letter-spacing: -0.06em; line-height: 1.05; }
+.header h1 span { color: #b8f56b; }
+.header > p:last-child { margin-top: 12px; color: #a9bab3; font-size: 14px; }
+.instructions { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px 28px; font-size: 13px; }
+.instructions p { display: flex; align-items: center; gap: 10px; }
+.instructions span { color: #b8f56b; font-family: var(--font-geist-mono), monospace; font-size: 11px; }
+.hint { text-align: center; color: #a9bab3; font-size: 12px; line-height: 1.9; }
+
+@media (max-width: 600px) {
+  .container { padding: 28px 12px; gap: 20px; }
+  .instructions { align-items: flex-start; flex-direction: column; gap: 12px; margin: 0 auto; }
 }

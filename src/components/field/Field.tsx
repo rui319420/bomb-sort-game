@@ -125,6 +125,8 @@ export function Field() {
   const [gamePhase, setGamePhase]   = useState<GamePhase>("playing");
   const [explosions, setExplosions] = useState<ExplosionData[]>([]);
   const [hasExploded, setHasExploded] = useState(false);
+  const [fieldScale, setFieldScale] = useState(1);
+  const viewportRef = useRef<HTMLDivElement>(null);
   const [nowMs, setNowMs] = useState(() => Date.now());
 
   const requestRef      = useRef<number | null>(null);
@@ -139,6 +141,16 @@ export function Field() {
     epicenterX?: number,
     epicenterY?: number,
   ) => void>(() => {});
+
+  useEffect(() => {
+    const viewport = viewportRef.current;
+    if (!viewport) return;
+    const observer = new ResizeObserver(([entry]) => {
+      setFieldScale(entry.contentRect.width / FIELD_WIDTH);
+    });
+    observer.observe(viewport);
+    return () => observer.disconnect();
+  }, []);
 
   // ── 全爆発ヘルパー ──────────────────────────────────────────
   const triggerAllExplosions = useCallback((
@@ -272,7 +284,10 @@ export function Field() {
   const getFieldPos = (clientX: number, clientY: number) => {
     const rect = fieldRef.current?.getBoundingClientRect();
     if (!rect) return { x: 0, y: 0 };
-    return { x: clientX - rect.left, y: clientY - rect.top };
+    return {
+      x: (clientX - rect.left) * FIELD_WIDTH / rect.width,
+      y: (clientY - rect.top) * FIELD_HEIGHT / rect.height,
+    };
   };
 
   const grab = (id: string) => {
@@ -295,15 +310,17 @@ export function Field() {
   };
 
   // ── マウスイベント ──────────────────────────────────────────
-  const handleMouseMove = (e: React.MouseEvent) => {
+  const handlePointerMove = (e: React.PointerEvent) => {
     const pos = getFieldPos(e.clientX, e.clientY);
     prevMousePos.current = { ...mousePos.current };
     mousePos.current = pos;
   };
 
-  const handleBombMouseDown = (e: React.MouseEvent, id: string) => {
+  const handleBombPointerDown = (e: React.PointerEvent, id: string) => {
+    if (!e.isPrimary || e.button !== 0 || draggingId.current) return;
     e.preventDefault();
     e.stopPropagation();
+    fieldRef.current?.setPointerCapture(e.pointerId);
     const pos = getFieldPos(e.clientX, e.clientY);
     mousePos.current = pos;
     prevMousePos.current = pos;
@@ -313,7 +330,7 @@ export function Field() {
   // ── Shiftキーグラブ ─────────────────────────────────────────
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key !== "Shift" || e.repeat || draggingId.current) return;
+      if (gamePhaseRef.current !== "playing" || e.key !== "Shift" || e.repeat || draggingId.current) return;
       const { x: mx, y: my } = mousePos.current;
       setBombs(prev => {
         const target = prev.find(b => {
@@ -348,6 +365,7 @@ export function Field() {
 
   // ── リセット ────────────────────────────────────────────────
   const reset = () => {
+    draggingId.current = null;
     setHasExploded(false);
     gamePhaseRef.current = "playing";
     setGamePhase("playing");
@@ -356,111 +374,95 @@ export function Field() {
     setExplosions([]);
   };
 
+  const removeExplosion = useCallback((id: string) => {
+    setExplosions(prev => prev.filter(explosion => explosion.id !== id));
+  }, []);
+
   // 爆発が全て終わった後にゲームオーバーを表示
   const showGameOver = gamePhase === "failed"
     && hasExploded
     && explosions.length === 0;
 
   return (
-    <div
-      className={styles.field}
-      ref={fieldRef}
-      onMouseMove={handleMouseMove}
-      onMouseUp={release}
-      onMouseLeave={release}
-    >
-      <Entrance />
-
-      {/* 下側入口 */}
-      <div style={{
-        position: 'absolute', bottom: 0, left: '50%',
-        transform: 'translateX(-50%)',
-        width: 100, height: 50,
-        backgroundColor: 'aqua',
-        borderRadius: '20px 20px 0 0',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        color: 'aliceblue', fontSize: 12, zIndex: 5,
-      }}>
-        ENTRANCE
+    <section className={styles.game} aria-label="ボム仕分けゲーム">
+      <div className={styles.toolbar}>
+        <span className={styles.status}>{gamePhase === "playing" ? "● PLAYING" : "● GAME OVER"}</span>
+        <p className={styles.score} aria-live="polite" aria-atomic="true">SCORE <strong>{score.toString().padStart(3, "0")}</strong></p>
       </div>
+      <div className={styles.viewport} ref={viewportRef}>
+        <div
+          className={styles.field}
+          style={{ transform: `scale(${fieldScale})` }}
+          ref={fieldRef}
+          onPointerMove={handlePointerMove}
+          onPointerUp={(e) => { handlePointerMove(e); release(); }}
+          onPointerCancel={release}
+          onLostPointerCapture={release}
+          onPointerLeave={() => { if (!draggingId.current) return; release(); }}
+        >
+          <Entrance />
 
-      <Cage color="red" />
+          <Entrance position="bottom" />
 
-      {bombs.map(bomb =>
-        bomb.status === "sorted" ? null : (() => {
-          const timeLeft = BOMB_TTL - (nowMs - bomb.spawnedAt);
-          const isWarning = bomb.status === "active" && timeLeft <= WARNING_WINDOW;
-          const blinkOn = isWarning && Math.floor(nowMs / BLINK_INTERVAL) % 2 === 0;
+          <Cage color="red" />
 
-          return (
-            <div
-              key={bomb.id}
-              onMouseDown={(e) => handleBombMouseDown(e, bomb.id)}
-              style={{
-                position:        'absolute',
-                left:            bomb.x,
-                top:             bomb.y,
-                width:           `${BOMB_SIZE}px`,
-                height:          `${BOMB_SIZE}px`,
-                borderRadius:    '50%',
-                backgroundColor: bomb.color,
-                border:          bomb.status === "dragging" ? '3px solid yellow' : '2px solid white',
-                zIndex:          bomb.status === "dragging" ? 20 : 10,
-                cursor:          bomb.status === "dragging" ? 'grabbing' : 'grab',
-                userSelect:      'none',
-                opacity:         blinkOn ? 0.3 : 1,
-                boxShadow:       isWarning ? '0 0 16px 5px rgba(255, 90, 0, 0.9)' : 'none',
-                outline:         isWarning ? '2px solid rgba(255,165,0,0.95)' : 'none',
-                outlineOffset:   '2px',
-              }}
+          {bombs.map(bomb =>
+            bomb.status === "sorted" ? null : (() => {
+              const timeLeft = BOMB_TTL - (nowMs - bomb.spawnedAt);
+              const isWarning = bomb.status === "active" && timeLeft <= WARNING_WINDOW;
+              const blinkOn = isWarning && Math.floor(nowMs / BLINK_INTERVAL) % 2 === 0;
+
+              return (
+                <div
+                  key={bomb.id}
+                  className={`${styles.bomb} ${styles[bomb.color]}`}
+                  data-color={bomb.color}
+                  aria-label={bomb.color === "red" ? "赤いボム" : "黒いボム"}
+                  onPointerDown={(e) => handleBombPointerDown(e, bomb.id)}
+                  style={{
+                    position:        'absolute',
+                    left:            bomb.x,
+                    top:             bomb.y,
+                    width:           `${BOMB_SIZE}px`,
+                    height:          `${BOMB_SIZE}px`,
+                    borderRadius:    '50%',
+                    border:          bomb.status === "dragging" ? '3px solid #d5ff8a' : '2px solid rgba(255,255,255,0.7)',
+                    zIndex:          bomb.status === "dragging" ? 20 : 10,
+                    cursor:          bomb.status === "dragging" ? 'grabbing' : 'grab',
+                    userSelect:      'none',
+                    opacity:         blinkOn ? 0.3 : 1,
+                    boxShadow:       isWarning ? '0 0 16px 5px rgba(255, 90, 0, 0.9)' : 'none',
+                    outline:         isWarning ? '2px solid rgba(255,165,0,0.95)' : 'none',
+                    outlineOffset:   '2px',
+                  }}
+                ><span className={styles.eyes} aria-hidden="true">••</span></div>
+              );
+            })()
+          )}
+
+          {explosions.map(exp => (
+            <Explosion
+              key={exp.id}
+              id={exp.id}
+              x={exp.x}
+              y={exp.y}
+              onDone={removeExplosion}
             />
-          );
-        })()
-      )}
+          ))}
 
-      {explosions.map(exp => (
-        <Explosion
-          key={exp.id}
-          x={exp.x}
-          y={exp.y}
-          onDone={() => setExplosions(prev => prev.filter(e => e.id !== exp.id))}
-        />
-      ))}
+          <Cage color="black" />
 
-      <Cage color="black" />
-
-      {/* スコア */}
-      <div style={{
-        position: 'absolute', top: 8, right: 8,
-        color: 'white', fontSize: 18, fontWeight: 'bold',
-        zIndex: 30, textShadow: '1px 1px 2px black',
-      }}>
-        SCORE: {score}
-      </div>
-
-      {/* ゲームオーバー：爆発が全て終わってから表示 */}
-      {showGameOver && (
-        <div style={{
-          position: 'absolute', inset: 0,
-          backgroundColor: 'rgba(0,0,0,0.75)',
-          display: 'flex', flexDirection: 'column',
-          alignItems: 'center', justifyContent: 'center',
-          zIndex: 50, gap: 16,
-        }}>
-          <div style={{ fontSize: 48, color: 'red', fontWeight: 'bold' }}>💥 GAME OVER</div>
-          <div style={{ fontSize: 24, color: 'white' }}>SCORE: {score}</div>
-          <button
-            onClick={reset}
-            style={{
-              padding: '10px 32px', fontSize: 18,
-              backgroundColor: 'white', borderRadius: 8,
-              border: 'none', cursor: 'pointer', fontWeight: 'bold',
-            }}
-          >
-            もう一度
-          </button>
+          {/* ゲームオーバー：爆発が全て終わってから表示 */}
+          {showGameOver && (
+            <div className={styles.overlay} role="dialog" aria-modal="true" aria-labelledby="game-over-title">
+              <p className={styles.overline}>また挑戦しよう！</p>
+              <h2 id="game-over-title">GAME OVER</h2>
+              <p className={styles.result}>仕分けたボム <strong>{score}</strong> 個</p>
+              <button onClick={reset} autoFocus>もう一度あそぶ <span aria-hidden="true">↗</span></button>
+            </div>
+          )}
         </div>
-      )}
-    </div>
+      </div>
+    </section>
   );
 }
